@@ -1,8 +1,19 @@
 package main
 
 import (
+	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 	"net/http"
+)
+
+const (
+	host     = "localhost"
+	port     = 5432
+	user     = "postgres"
+	password = "Premium@007"
+	dbname   = "postgres"
 )
 
 // album represents data about a record album.
@@ -27,6 +38,21 @@ func getAlbums(c *gin.Context) {
 
 // postAlbums adds an album from JSON received in the request body.
 func postAlbums(c *gin.Context) {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Successfully connected!")
 	var newAlbum album
 
 	// Call BindJSON to bind the received JSON to
@@ -37,6 +63,9 @@ func postAlbums(c *gin.Context) {
 
 	// Add the new album to the slice.
 	albums = append(albums, newAlbum)
+	insertStmt := `insert into jovin.albums("id", "title","artist","price") values($1, $2,$3,$4)`
+	_, e := db.Exec(insertStmt, newAlbum.ID, newAlbum.Title, newAlbum.Artist, newAlbum.Price)
+	CheckError(e)
 	c.IndentedJSON(http.StatusCreated, newAlbum)
 }
 
@@ -57,9 +86,15 @@ func getAlbumByID(c *gin.Context) {
 }
 
 func main() {
+
 	router := gin.Default()
 	router.GET("/albums", getAlbums)
 	router.GET("/albums/:id", getAlbumByID)
 	router.POST("/albums", postAlbums)
 	router.Run("localhost:8888")
+}
+func CheckError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
